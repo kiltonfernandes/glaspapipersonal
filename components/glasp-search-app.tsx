@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { SearchResult } from "@/lib/types";
+import { formatAiContext } from "@/lib/context";
+import { buildFacets, searchHighlights } from "@/lib/search";
+import type { HighlightRecord } from "@/lib/types";
 
 type SearchPayload = {
-  results: SearchResult[];
+  highlights: HighlightRecord[];
   facets: {
     tags: string[];
     domains: string[];
@@ -19,7 +21,7 @@ type SearchPayload = {
 };
 
 const emptyPayload: SearchPayload = {
-  results: [],
+  highlights: [],
   facets: { tags: [], domains: [], colors: [] },
   meta: { documentCount: 0, highlightCount: 0, cachedAt: "", expiresAt: "" }
 };
@@ -30,49 +32,35 @@ export function GlaspSearchApp() {
   const [domain, setDomain] = useState("");
   const [color, setColor] = useState("");
   const [payload, setPayload] = useState<SearchPayload>(emptyPayload);
-  const [contextText, setContextText] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const searchUrl = useMemo(() => {
-    const params = new URLSearchParams({ limit: "30" });
-    if (query.trim()) params.set("q", query.trim());
-    if (tag) params.set("tag", tag);
-    if (domain) params.set("domain", domain);
-    if (color) params.set("color", color);
-    return `/api/search?${params.toString()}`;
-  }, [query, tag, domain, color]);
-
-  const contextUrl = useMemo(() => {
-    const params = new URLSearchParams({ limit: "12" });
-    if (query.trim()) params.set("q", query.trim());
-    if (tag) params.set("tag", tag);
-    if (domain) params.set("domain", domain);
-    if (color) params.set("color", color);
-    return `/api/context?${params.toString()}`;
-  }, [query, tag, domain, color]);
-
   useEffect(() => {
     const controller = new AbortController();
-    const timeout = window.setTimeout(async () => {
+
+    async function loadHighlights() {
       setLoading(true);
       setError("");
 
       try {
-        const [searchResponse, contextResponse] = await Promise.all([
-          fetch(searchUrl, { signal: controller.signal }),
-          fetch(contextUrl, { signal: controller.signal })
-        ]);
+        const response = await fetch("/api/highlights", { signal: controller.signal });
 
-        if (!searchResponse.ok) {
-          const body = await searchResponse.json().catch(() => ({}));
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
           throw new Error(body.error || "Nao foi possivel buscar seus highlights.");
         }
 
-        setPayload((await searchResponse.json()) as SearchPayload);
-        setContextText(await contextResponse.text());
+        const data = (await response.json()) as {
+          highlights: HighlightRecord[];
+          meta: SearchPayload["meta"];
+        };
+        setPayload({
+          highlights: data.highlights,
+          facets: buildFacets(data.highlights),
+          meta: data.meta
+        });
       } catch (caught) {
         if (!controller.signal.aborted) {
           setError(caught instanceof Error ? caught.message : "Erro inesperado.");
@@ -82,13 +70,28 @@ export function GlaspSearchApp() {
           setLoading(false);
         }
       }
-    }, 250);
+    }
+
+    loadHighlights();
 
     return () => {
-      window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [searchUrl, contextUrl]);
+  }, []);
+
+  const results = useMemo(
+    () =>
+      searchHighlights(payload.highlights, {
+        q: query,
+        limit: 30,
+        tag,
+        domain,
+        color
+      }),
+    [payload.highlights, query, tag, domain, color]
+  );
+
+  const contextText = useMemo(() => formatAiContext(results.slice(0, 12)), [results]);
 
   async function refresh() {
     setRefreshing(true);
@@ -100,8 +103,15 @@ export function GlaspSearchApp() {
         const body = await response.json().catch(() => ({}));
         throw new Error(body.error || "Nao foi possivel atualizar o cache.");
       }
-      const searchResponse = await fetch(searchUrl);
-      setPayload((await searchResponse.json()) as SearchPayload);
+      const data = (await response.json()) as {
+        highlights: HighlightRecord[];
+        meta: SearchPayload["meta"];
+      };
+      setPayload({
+        highlights: data.highlights,
+        facets: buildFacets(data.highlights),
+        meta: data.meta
+      });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Erro inesperado.");
     } finally {
@@ -148,6 +158,7 @@ export function GlaspSearchApp() {
           <span>{payload.meta.documentCount} documentos</span>
           <span>{payload.meta.highlightCount} highlights</span>
           {payload.meta.cachedAt ? <span>cache: {new Date(payload.meta.cachedAt).toLocaleTimeString("pt-BR")}</span> : null}
+          <span>busca local</span>
         </div>
       </section>
 
@@ -157,11 +168,11 @@ export function GlaspSearchApp() {
         <div className="results-panel">
           <div className="panel-title">
             <h2>Resultados</h2>
-            <span>{loading ? "buscando..." : `${payload.results.length} itens`}</span>
+            <span>{loading ? "carregando..." : `${results.length} itens`}</span>
           </div>
 
           <div className="result-list">
-            {payload.results.map((result) => (
+            {results.map((result) => (
               <article className="result-card" key={result.id}>
                 <div className="card-meta">
                   <span className={`color-dot color-${result.color || "default"}`} />
@@ -191,7 +202,7 @@ export function GlaspSearchApp() {
               </article>
             ))}
 
-            {!loading && !payload.results.length ? (
+            {!loading && !results.length ? (
               <div className="empty-state">Nada encontrado. Tente uma palavra relacionada, tag, domínio ou trecho aproximado.</div>
             ) : null}
           </div>

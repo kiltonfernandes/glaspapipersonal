@@ -9,6 +9,7 @@ Web app pessoal para buscar highlights do Glasp e gerar contexto pronto para usa
 - Pesquisa por titulo, URL, dominio, tags, resumo, nota e texto do highlight.
 - Gera um bloco de contexto copiavel para IA.
 - Expoe endpoints JSON/texto para automacoes.
+- Na interface web, carrega os highlights uma vez e faz as buscas localmente para reduzir chamadas ao Glasp.
 
 ## Aviso de privacidade
 
@@ -90,3 +91,4 @@ npm run test
 - A busca e textual/fuzzy, nao semantica por embeddings.
 - O cache e em memoria; em serverless ele pode ser perdido quando a funcao reiniciar.
 - Sem banco externo para manter custo zero.
+- Se o Glasp retornar limite de requisicoes, aguarde alguns minutos e evite usar o botao de atualizar repetidamente.
