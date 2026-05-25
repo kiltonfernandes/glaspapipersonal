@@ -45,7 +45,10 @@ npm run dev
 GLASP_ACCESS_TOKEN=seu_token_do_glasp
 ```
 
-3. Faca o deploy.
+3. Marque os ambientes em que voce quer usar o token, normalmente `Production`, `Preview` e `Development`.
+4. Faca um novo deploy. Variaveis adicionadas depois do deploy nao alteram deployments antigos.
+
+> GitHub Secrets nao sao enviados automaticamente para a Vercel. Se a Vercel estiver conectada ao repo pelo painel, configure `GLASP_ACCESS_TOKEN` tambem na propria Vercel.
 
 ## Endpoints
 
@@ -69,6 +72,10 @@ Retorna texto puro com os melhores highlights formatados para colar em uma IA.
 ### `POST /api/refresh`
 
 Limpa o cache em memoria e recarrega os dados do Glasp.
+
+### `GET /api/health`
+
+Mostra se `GLASP_ACCESS_TOKEN` existe no runtime do servidor, sem revelar o valor do token.
 
 ## Scripts
 

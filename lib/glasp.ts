@@ -28,7 +28,9 @@ export class GlaspClient {
 
   async exportHighlights(): Promise<GlaspDocument[]> {
     if (!this.token || this.token === "cole_seu_token_aqui") {
-      throw new GlaspApiError("Configure GLASP_ACCESS_TOKEN para carregar seus highlights.");
+      throw new GlaspApiError(
+        "Configure GLASP_ACCESS_TOKEN nas Environment Variables da Vercel e faca um novo deploy para carregar seus highlights."
+      );
     }
 
     const documents: GlaspDocument[] = [];
